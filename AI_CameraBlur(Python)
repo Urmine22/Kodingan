@@ -1,0 +1,125 @@
+import cv2
+import mediapipe as mp
+
+# ==============================
+# MediaPipe Hands
+# ==============================
+mp_hands = mp.solutions.hands
+mp_draw = mp.solutions.drawing_utils
+
+hands = mp_hands.Hands(
+    max_num_hands=1,
+    min_detection_confidence=0.7,
+    min_tracking_confidence=0.7
+)
+
+# ==============================
+# Kamera
+# ==============================
+cap = cv2.VideoCapture(0)
+
+# Resolusi HD
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+# Window dapat diperbesar
+cv2.namedWindow("AI Blur Camera", cv2.WINDOW_NORMAL)
+cv2.resizeWindow("AI Blur Camera", 1280, 720)
+
+
+# ==============================
+# Hitung jumlah jari
+# ==============================
+def count_fingers(hand_landmarks):
+    fingers = 0
+
+    # Ibu jari
+    if hand_landmarks.landmark[4].x < hand_landmarks.landmark[3].x:
+        fingers += 1
+
+    # Empat jari lainnya
+    tips = [8, 12, 16, 20]
+
+    for tip in tips:
+        if hand_landmarks.landmark[tip].y < hand_landmarks.landmark[tip - 2].y:
+            fingers += 1
+
+    return fingers
+
+
+# ==============================
+# Loop Kamera
+# ==============================
+while True:
+
+    success, frame = cap.read()
+
+    if not success:
+        break
+
+    frame = cv2.flip(frame, 1)
+
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    results = hands.process(rgb)
+
+    jumlah_jari = 0
+
+    if results.multi_hand_landmarks:
+
+        for hand in results.multi_hand_landmarks:
+
+            mp_draw.draw_landmarks(
+                frame,
+                hand,
+                mp_hands.HAND_CONNECTIONS
+            )
+
+            jumlah_jari = count_fingers(hand)
+
+    # ==========================
+    # Blur seluruh gambar jika 5 jari
+    # ==========================
+    if jumlah_jari == 5:
+
+        frame = cv2.GaussianBlur(frame, (151, 151), 50)
+
+        status = "BLUR AKTIF"
+        warna = (0, 0, 255)
+
+    else:
+
+        status = "NORMAL"
+        warna = (0, 255, 0)
+
+    # ==========================
+    # Informasi
+    # ==========================
+    cv2.putText(
+        frame,
+        f"Jumlah Jari : {jumlah_jari}",
+        (20, 40),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (255, 255, 255),
+        2
+    )
+
+    cv2.putText(
+        frame,
+        f"STATUS : {status}",
+        (20, 85),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        warna,
+        2
+    )
+
+    cv2.imshow("AI Blur Camera", frame)
+
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
+
+
+cap.release()
+cv2.destroyAllWindows()
